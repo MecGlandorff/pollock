@@ -18,10 +18,6 @@ Get a complete, legal game played through a GUI-less match runner.
 3. **Draws and time.** Repetition detection via Zobrist history (treat a single repeat as a draw inside the search, threefold at the root), the fifty-move rule, and basic time management with a safety margin.
 4. **First match.** Use [Fastchess](https://github.com/Disservin/fastchess) to play thousands of games from different openings against a fixed opponent at equal clocks, switching colors. All games must finish legally with no time losses. We use `UHO_Lichess_4852_v1.epd` from [Stockfish books](https://github.com/official-stockfish/books) as our opening book.
 
-## Phase 3: Search strength and testing
-
-
-
 ## Later
 
 Strength gains are only real if measured, so the test setup comes before the tuning.
