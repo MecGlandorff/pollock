@@ -17,7 +17,7 @@ pub const chess960 = false;
 
 pub const Bitboard = @import("Bitboard.zig");
 pub const Castling = @import("castling.zig").Castling;
-pub const Color = @import("color.zig");
+pub const Color = @import("color.zig").Color;
 pub const Move = @import("move.zig").Move;
 pub const Piece = @import("piece.zig").Piece;
 pub const Position = @import("Position.zig");

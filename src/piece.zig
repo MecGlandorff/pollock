@@ -54,6 +54,6 @@ pub const Piece = packed struct(u4) {
     pub fn toChar(piece: Piece) u8 {
         const character: [count]u8 = .{ 'P', 'p', 'N', 'n', 'B', 'b', 'R', 'r', 'Q', 'q', 'K', 'k' };
 
-        return character[@as(usize, @bitCast(piece))];
+        return character[@backingInt(piece)];
     }
 };
