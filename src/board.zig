@@ -23,10 +23,10 @@ pub const Square = enum(u6) {
     pub const south: Step = -north;
     pub const east: Step = 1;
     pub const west: Step = -east;
-    pub const north_east: Step = north + east;
-    pub const north_west: Step = north + west;
-    pub const south_east: Step = south + east;
-    pub const south_west: Step = south + west;
+    pub const northeast: Step = north + east;
+    pub const northwest: Step = north + west;
+    pub const southeast: Step = south + east;
+    pub const southwest: Step = south + west;
 
     /// Returns the square on `file` and `rank`.
     pub inline fn fromCoords(f: File, r: Rank) Square {
