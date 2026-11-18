@@ -38,14 +38,14 @@ pub const Move = packed struct(u16) {
         queen,
     };
 
-    /// Returns `true` if `move`s source is equal to its destination and it is not supposed to be.
+    /// Returns `true` if `move`s source is equal to its destination.
     pub inline fn isWeird(move: Move) bool {
-        return move.source == move.destination and !(pollock.chess960 and move.move_type == .castle);
+        return move.source == move.destination;
     }
 
     /// Creates a move from `source` to `destination` with `move_type` and `promotion`.
     pub inline fn create(source: Square, destination: Square, move_type: Type, promotion: Promotion) Move {
-        std.debug.assert(source != destination or (pollock.chess960 and move_type == .castle));
+        std.debug.assert(source != destination);
 
         return .{
             .source = source,
