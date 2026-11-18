@@ -12,7 +12,7 @@ const ZobristKey = pollock.ZobristKey;
 
 const Position = @This();
 
-info: *Info,
+state: *State,
 board: std.EnumArray(Square, ?Piece),
 type_occupancy: std.EnumArray(Piece.Type, Bitboard),
 color_occupancy: std.EnumArray(Color, Bitboard),
@@ -23,15 +23,15 @@ game_ply: usize,
 side_to_move: Color,
 chess960: bool,
 
-pub const Info = struct {
-    castling_rights: Castling,
-    en_passant_square: ?Square,
-    halfmove_clock: usize,
-    previous_info: ?*const Info,
-    zobrist_key: ZobristKey,
+pub const State = struct {
+    previous_state: ?*const State,
     checkers: Bitboard,
     blockers: std.EnumArray(Color, Bitboard),
+    castling_rights: Castling,
     captured_piece: ?Piece,
+    en_passant_square: ?Square,
+    zobrist_key: ZobristKey,
+    halfmove_clock: usize,
     repetition: u32,
 };
 
@@ -209,8 +209,8 @@ pub fn setFen(
 
     position.* = .{
         .board = .initFill(null),
-        .type_occupancy = .initFill(0),
-        .color_occupancy = .initFill(0),
+        .type_occupancy = .initFill(.empty),
+        .color_occupancy = .initFill(.empty),
         .info = info,
         .castling_mask = .initFill(.none),
         .castling_rook_square = undefined,
