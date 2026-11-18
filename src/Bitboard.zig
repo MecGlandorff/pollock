@@ -30,7 +30,8 @@ const base_attacks: std.EnumArray(Piece.AttackType, std.EnumArray(Square, Bitboa
     break :blk attacks;
 };
 
-fn pawnAttacks(comptime square: Square) Bitboard {}
+/// Comptime function to generate pawn attacks.
+fn pawnAttacks(comptime square: Square, comptime color: Color) Bitboard {}
 
 /// Comptime function to generate knight attacks.
 fn knightAttacks(comptime square: Square) Bitboard {
