@@ -4,6 +4,6 @@ pub const Color = enum(u1) {
 
     /// Returns the opposite of `color`.
     pub inline fn opposite(color: Color) Color {
-        return @fromBackingInt(@backingInt(color) ^ 1);
+        return @fromBackingInt(@backingInt(color) ^ @backingInt(Color.black));
     }
 };

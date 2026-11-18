@@ -1,7 +1,6 @@
 const std = @import("std");
 
 const pollock = @import("pollock");
-const bitboard = pollock.bitboard;
 const Bitboard = pollock.Bitboard;
 const Castling = pollock.Castling;
 const Color = pollock.Color;
@@ -13,12 +12,10 @@ const ZobristKey = pollock.ZobristKey;
 
 const Position = @This();
 
+info: *Info,
 board: std.EnumArray(Square, ?Piece),
 type_occupancy: std.EnumArray(Piece.Type, Bitboard),
 color_occupancy: std.EnumArray(Color, Bitboard),
-
-info: *Info,
-
 castling_mask: std.EnumArray(Square, Castling),
 castling_rook_square: [Castling.count]Square,
 castling_path: [Castling.count]Bitboard,
@@ -30,7 +27,6 @@ pub const Info = struct {
     castling_rights: Castling,
     en_passant_square: ?Square,
     halfmove_clock: usize,
-
     previous_info: ?*const Info,
     zobrist_key: ZobristKey,
     checkers: Bitboard,
@@ -39,14 +35,17 @@ pub const Info = struct {
     repetition: u32,
 };
 
+/// Returns the square of the king of `color` in `position`.
 pub fn kingSquare(position: *const Position, color: Color) Square {
     return @fromBackingInt(@intCast(@ctz(position.pieceOccupancy(color, .king))));
 }
 
+/// Returns the occupancy of `color` in `position`.
 pub fn colorOccupancy(position: *const Position, color: Color) Bitboard {
     return position.color_occupancy.get(color);
 }
 
+/// Returns the occupancy of the pieces of `piece_type` and `color` in `position`.
 pub fn pieceOccupancy(position: *const Position, color: Color, piece_type: Piece.Type) Bitboard {
     return position.color_occupancy.get(color) & position.type_occupancy.get(piece_type);
 }
@@ -108,10 +107,6 @@ fn number(
     const token = fields.next() orelse return fail(diagnostics, input_len, missing);
     return std.fmt.parseUnsigned(usize, token, 10) catch
         fail(diagnostics, fields.index - token.len, invalid);
-}
-
-fn square(file: usize, rank: usize) Square {
-    return .fromCoords(@fromBackingInt(@intCast(file)), @fromBackingInt(@intCast(rank)));
 }
 
 /// Squares on `rank` from file `a` to file `b`, both inclusive, in either order.
@@ -182,10 +177,10 @@ fn addCastlingRight(position: *Position, color: Color, king_file: usize, rook_fi
     if (king_file != 4 or (rook_file != 0 and rook_file != 7)) position.chess960 = true;
 }
 
-pub fn placePiece(position: *Position, piece: Piece, sq: Square) void {
+pub fn placePiece(position: *Position, piece: Piece, square: Square) void {
     std.debug.assert(position.board.get(sq) == null);
 
-    const bb = bitboard.fromSquare(sq); // assumed: Square.bitboard() Bitboard
+    const bb = square.bitboard(); // assumed: Square.bitboard() Bitboard
     position.board.set(sq, piece);
     position.type_occupancy.getPtr(piece.type).* |= bb; // assumed: Piece.kind() Piece.Type
     position.color_occupancy.getPtr(piece.color).* |= bb; // assumed: Piece.color() Color
