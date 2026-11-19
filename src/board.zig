@@ -1,7 +1,7 @@
 const std = @import("std");
 
 const pollock = @import("pollock");
-const Bitboard = pollock.Bitboard;
+const Bitboard = pollock.bitboard.Bitboard;
 const Color = @import("pollock").Color;
 
 pub const Square = enum(u6) {
@@ -43,6 +43,11 @@ pub const Square = enum(u6) {
         return @fromBackingInt(@backingInt(square) ^ (@as(SquareInt, @backingInt(color)) * 56));
     }
 
+    /// Returns whether `self` is less than `square`.
+    pub inline fn less(square1: Square, square2: Square) bool {
+        return @backingInt(square1) < @backingInt(square2);
+    }
+
     /// Returns the file of `square`.
     pub inline fn file(square: Square) File {
         return @fromBackingInt(@intCast(@backingInt(square) % File.count));
@@ -60,7 +65,7 @@ pub const Square = enum(u6) {
 
     /// Returns a bitboard of `square`.
     pub inline fn bitboard(square: Square) Bitboard {
-        return .from(1 << @backingInt(square));
+        return @as(Bitboard, 1) << @backingInt(square);
     }
 };
 
@@ -91,14 +96,9 @@ pub const File = enum(u3) {
         return @backingInt(file) + 'a';
     }
 
-    /// Changes `file` by `file_step`.
-    pub inline fn step(file: File, file_step: Step) ?File {
-        return std.enums.fromInt(File, @backingInt(file) + file_step);
-    }
-
     /// Returns a bitboard of `file`.
     pub inline fn bitboard(file: File) Bitboard {
-        return .from(0x0101010101010101 << @backingInt(file));
+        return @as(Bitboard, 0x0101010101010101) << @backingInt(file);
     }
 };
 
@@ -128,13 +128,13 @@ pub const Rank = enum(u3) {
         return @backingInt(rank) + '1';
     }
 
-    /// Changes `rank` by `rank_step`.
-    pub inline fn step(rank: Rank, rank_step: Step) ?Rank {
-        return std.enums.fromInt(Rank, @backingInt(rank) + rank_step);
-    }
-
     /// Returns a bitboard of `rank`.
     pub inline fn bitboard(rank: Rank) Bitboard {
-        return .from(0x00000000000000FF << @backingInt(rank));
+        return @as(Bitboard, 0x00000000000000FF) << @backingInt(rank);
+    }
+
+    /// Returns the back rank of `color`.
+    pub inline fn backRank(color: Color) Rank {
+        return @fromBackingInt(color * @backingInt(Rank.@"8"));
     }
 };

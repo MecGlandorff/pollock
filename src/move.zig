@@ -4,6 +4,7 @@ const pollock = @import("pollock");
 const Castling = pollock.Castling;
 const Color = pollock.Color;
 const Piece = pollock.Piece;
+const Position = pollock.Position;
 const Square = pollock.Square;
 
 pub const Move = packed struct(u16) {
@@ -60,30 +61,34 @@ pub const Move = packed struct(u16) {
         return create(source, destination, .normal, .knight);
     }
 
-    /// Creates a new castle move. Castling must be possible and `castle_side` must
-    /// be equal to either `Castling.king_side` or `Castling.queen_side`.
-    pub inline fn createCastle(king_square: Square, castle_side: Castling) Move {
-        std.debug.assert(castle_side == Castling.king_side or castle_side == Castling.queen_side);
+    /// Creates an en passant capture from `source` to `destination`.
+    pub inline fn createEnPassant(source: Square, destination: Square) Move {
+        return create(source, destination, .en_passant, .knight);
+    }
 
-        const square: Square = switch (castle_side) {
-            Castling.king_side => .g1,
-            Castling.queen_side => .c1,
-            else => unreachable,
-        };
-        const color: Color = @fromBackingInt(@intFromBool(king_square.rank() != .@"1"));
-        const destination: Square = .relative(square, color);
+    /// Creates a new castle move. Castling must be possible and `side` must be equal to either `Castling.kingside`
+    /// or `Castling.queenside`.
+    pub fn createCastle(position: *const Position, color: Color, side: Castling) Move {
+        std.debug.assert(side == .kingside or side == .queenside);
 
-        return .create(king_square, destination, .castle, .knight);
+        var destination: Square = undefined;
+        if (position.chess960) {
+            const castle: Castling = .right(color, side == .kingside);
+            destination = position.castleRookSquare(castle);
+        } else {
+            destination = .relative(switch (side) {
+                Castling.kingside => .g1,
+                Castling.queenside => .c1,
+                else => unreachable,
+            }, color);
+        }
+
+        return .create(position.kingSquare(color), destination, .castle, .knight);
     }
 
     /// Returns the piece type of the promotion of `move`.
     pub inline fn promotionPieceType(move: Move) Piece.Type {
-        return switch (move.promotion) {
-            .knight => .knight,
-            .bishop => .bishop,
-            .rook => .rook,
-            .queen => .queen,
-        };
+        return @fromBackingInt(@as(u32, @backingInt(move.promotion)) + 1);
     }
 
     /// Returns the character corresponding the promotion type of `move`.
