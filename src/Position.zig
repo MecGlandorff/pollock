@@ -9,6 +9,7 @@ const Piece = pollock.Piece;
 const Rank = pollock.Rank;
 const File = pollock.File;
 const Square = pollock.Square;
+const zobrist = pollock.zobrist;
 const ZobristKey = pollock.ZobristKey;
 
 const Position = @This();
@@ -17,9 +18,9 @@ state: *State,
 board: std.EnumArray(Square, ?Piece),
 type_occupancy: std.EnumArray(Piece.Type, Bitboard),
 color_occupancy: std.EnumArray(Color, Bitboard),
-castle_mask: std.EnumArray(Square, Castling),
-castle_rook_square: [Castling.count]Square,
-castle_path: [Castling.count]Bitboard,
+castling_rights_mask: std.EnumArray(Square, Castling),
+castling_rook_square: [Castling.count]Square,
+castling_path: [Castling.count]Bitboard,
 game_ply: usize,
 side_to_move: Color,
 chess960: bool,
@@ -53,69 +54,64 @@ pub fn colorOccupancy(position: *const Position, color: Color) Bitboard {
     return position.color_occupancy.get(color);
 }
 
+/// Returns the occupancy of `piece_type` in `position`.
+pub fn typeOccupancy(position: *const Position, piece_type: Piece.Type) Bitboard {
+    return position.type_occupancy.get(piece_type);
+}
+
 /// Returns the occupancy of the pieces of `piece_type` and `color` in `position`.
 pub fn pieceOccupancy(position: *const Position, color: Color, piece_type: Piece.Type) Bitboard {
-    return position.color_occupancy.get(color) & position.type_occupancy.get(piece_type);
+    return position.colorOccupancy(color) & position.typeOccupancy(piece_type);
 }
 
 /// Returns the castling mask for `square` in `position`.
-pub fn castleMask(position: *const Position, square: Square) Castling {
-    return position.castling_mask.get(square);
+pub fn castlingRightsMask(position: *const Position, square: Square) Castling {
+    return position.castling_rights_mask.get(square);
 }
 
 /// Returns the castle rook square for `castle` in `position`.
-pub fn castleRookSquare(position: *const Position, castle: Castling) Square {
-    return position.castle_rook_square[castle.index()];
+pub fn castlingRookSquare(position: *const Position, castle: Castling) Square {
+    return position.castling_rook_square[castle.index()];
 }
 
 /// Returns the castle path of `castle` in `position`.
-pub fn castlePath(position: *const Position, castle: Castling) Bitboard {
-    return position.castle_path[castle.index()];
+pub fn castlingPath(position: *const Position, castle: Castling) Bitboard {
+    return position.castling_path[castle.index()];
 }
 
-pub const FenError = error{
-    MissingPiecePlacement,
-    MissingSideToMove,
-    MissingCastling,
-    MissingEnPassant,
-    MissingHalfmoveClock,
-    MissingFullmoveNumber,
-    TooManyFiles, // rank has more than 8 squares
-    TooFewFiles, // rank has fewer than 8 squares
-    TooManyRanks,
-    TooFewRanks,
-    InvalidPiece,
-    InvalidSideToMove,
-    InvalidCastling,
-    InvalidEnPassant,
-    InvalidHalfmoveClock,
-    InvalidFullmoveNumber,
-};
+/// Returns the Zobrist key of `position`.
+pub fn zobristKey(position: *const Position) ZobristKey {
+    return position.state.zobrist_key;
+}
 
-fn addCastlingRight(position: *Position, color: Color, king_source: Square, rook_source: Square) void {
-    const kingside = @backingInt(rook_source) > @backingInt(king_source);
+fn addCastlingRight(position: *Position, color: Square, rook_source: Square) void {
+    const king_source = position.kingSquare(color);
+    const kingside = king_source.less(rook_source);
 
     var right: Castling = .right(color, kingside);
+    const right_index = right.index();
 
-    const king_destination: Square = .relative(if (kingside) .g1 else .c1, color);
-    const rook_destination: Square = .relative(if (kingside) .f1 else .d1, color);
+    position.state.castling_rights.addRight(right);
+    position.castling_rights_mask.getPtr(king_source).addRight(right);
+    position.castling_rights_mask.getPtr(rook_source).addRight(right);
+    position.castling_rook_square[right_index] = rook_source;
 
-    position.state.castling_rights = position.state.castling_rights.addRight(right);
-    inline for ([_]Square{ king_source, rook_source }) |sq|
-        position.castling_mask.set(sq, position.castlingMask(sq).addRight(right));
+    const king_destination: Square = .relative(color, if (kingside) .g1 else .c1);
+    const rook_destination: Square = .relative(color, if (kingside) .f1 else .d1);
 
-    const index = right.index();
-    position.castling_rook_square[index] = rook_source;
-    position.castling_path[index] = Bitboard.between(king_source, king_destination).@"or"(Bitboard.between(rook_source, rook_destination)).@"and"(king_source.bitboard().@"or"(rook_source.bitboard()).not());
+    position.castling_path[right_index] = (bitboard.between(king_source, king_destination) | bitboard.between(rook_source, rook_destination)) & ~(king_source.bitboard() | (rook_source.bitboard()));
 }
 
+/// Places `piece` on `square` in `position`.
 pub fn placePiece(position: *Position, piece: Piece, square: Square) void {
     std.debug.assert(position.onSquare(square) == null);
 
-    const bb = square.bitboard();
+    const square_bb = square.bitboard();
     position.board.set(square, piece);
-    position.type_occupancy.getPtr(piece.type).* |= bb;
-    position.color_occupancy.getPtr(piece.color).* |= bb;
+    position.type_occupancy.getPtr(piece.type).* |= square_bb;
+    position.color_occupancy.getPtr(piece.color).* |= square_bb;
+
+    position.state.zobrist_key ^= zobrist.pieceKey(piece, square);
 }
 
 fn charToPiece(char: u8) ?Piece {
@@ -132,11 +128,25 @@ fn charToPiece(char: u8) ?Piece {
     };
 }
 
-/// Updates `error_offset` and returns `err` for invalid FENs.
-fn failFenParsing(error_offset: ?*usize, offset: usize, err: FenError) FenError {
-    if (error_offset) |*d| d.* = offset;
-    return err;
-}
+pub const FenError = error{
+    MissingPiecePlacement,
+    MissingSideToMove,
+    MissingCastling,
+    MissingEnPassant,
+    MissingHalfmoveClock,
+    MissingFullmoveNumber,
+    TooManyFiles,
+    TooFewFiles,
+    TooManyRanks,
+    TooFewRanks,
+    InvalidPiece,
+    InvalidSideToMove,
+    InvalidCastling,
+    InvalidEnPassant,
+    InvalidHalfmoveClock,
+    InvalidFullmoveNumber,
+    UnexpectedEnd,
+};
 
 /// Parses a FEN from the start of `input` and returns the unconsumed rest (leading whitespace removed), e.g.
 /// "moves e2e4 e7e5". On error, `position` is left in an unspecified (partially filled) state.
@@ -144,12 +154,23 @@ pub fn setFen(
     position: *Position,
     state: *State,
     input: []const u8,
-    error_offset: ?*usize,
+    chess960: bool,
 ) FenError![]const u8 {
+    const cursor: struct {
+        input: []const u8 = input,
+        index: usize = 0,
+
+        fn next(c: *@This()) ?u8 {
+            const char = if (c.index < c.input.len) c.input[c.index] else null;
+            c.index += 1;
+            return char;
+        }
+    } = .{};
+
     state.* = .{
         .previous_info = null,
-        .checkers = .empty,
-        .blockers = .initFill(.empty),
+        .checkers = bitboard.empty,
+        .blockers = .initFill(undefined),
         .castling_rights = .none,
         .captured_piece = null,
         .en_passant_square = null,
@@ -161,72 +182,81 @@ pub fn setFen(
     position.* = .{
         .state = state,
         .board = .initFill(null),
-        .type_occupancy = .initFill(.empty),
-        .color_occupancy = .initFill(.empty),
-        .castling_mask = .initFill(.none),
-        .castling_rook_square = @splat(.empty),
-        .castling_path = @splat(.empty),
+        .type_occupancy = .initFill(bitboard.empty),
+        .color_occupancy = .initFill(bitboard.empty),
+        .castling_rights_mask = .initFill(.none),
+        .castling_rook_square = @splat(undefined),
+        .castling_path = @splat(undefined),
         .side_to_move = undefined,
         .game_ply = undefined,
-        .chess960 = false,
+        .chess960 = chess960,
     };
-
-    // After next(), `fields.index` is just past the returned token, so `fields.index - token.len` is the token's start
-    // offset.
-    var fields = std.mem.tokenizeAny(u8, input, " \t");
 
     // 1. Piece placement.
-    const placement = fields.next() orelse
-        return failFenParsing(error_offset, input.len, FenError.MissingPiecePlacement);
-    const placement_start = fields.index - placement.len;
+    var ranks = std.mem.reverseIterator(std.enums.values(Rank));
+    var rank = ranks.next();
+    var file_count: usize = 0;
+    while (true) {
+        const char = cursor.next() orelse
+            return FenError.UnexpectedEnd;
 
-    var rank: ?Rank = .@"8";
-    var file: ?File = .a;
-    for (placement, placement_start..) |char, offset| switch (char) {
-        '/' => {
-            if (file)
-                return failFenParsing(error_offset, offset, FenError.TooFewFiles);
-            if (rank == .@"1")
-                return failFenParsing(error_offset, offset, FenError.TooManyRanks);
+        if (char == ' ')
+            break;
 
-            rank = rank.step(Rank.south);
-            file = .a;
-        },
-        '1'...'8' => {
-            const current_file = file.? orelse unreachable;
-            if (@backingInt(current_file) + char - '0' > 8)
-                return failFenParsing(error_offset, offset, FenError.TooManyFiles);
+        switch (char) {
+            '/' => {
+                if (file_count < File.count)
+                    return FenError.TooFewFiles;
 
-            file = current_file.step(@intCast(char - '0'));
-        },
-        else => {
-            if (!file)
-                return failFenParsing(error_offset, offset, FenError.TooManyFiles);
+                rank = ranks.next() orelse
+                    return FenError.TooManyRanks;
+                file_count = 0;
+            },
+            '1'...'8' => {
+                file_count += char - '0';
 
-            const piece = charToPiece(char) orelse
-                return failFenParsing(error_offset, offset, FenError.InvalidPiece);
-            position.placePiece(piece, .fromCoords(file, rank));
+                if (file_count > 8)
+                    return FenError.TooManyFiles;
+            },
+            else => {
+                if (file_count >= 8)
+                    return FenError.TooManyFiles;
 
-            file = file.?.step(File.east) orelse unreachable;
-        },
-    };
+                const piece = charToPiece(char) orelse
+                    return FenError.InvalidPiece;
+                position.placePiece(piece, .fromCoords(@fromBackingInt(@intCast(file_count)), rank));
+                file_count += 1;
+            },
+        }
+    }
+
     if (rank != .@"1")
-        return failFenParsing(error_offset, fields.index, FenError.TooFewRanks);
-    if (file)
-        return failFenParsing(error_offset, fields.index, FenError.TooFewFiles);
+        return FenError.TooFewRanks;
+    if (file_count < 8)
+        return FenError.TooFewFiles;
 
     // 2. Side to move.
-    const side = fields.next() orelse
-        return failFenParsing(error_offset, input.len, FenError.MissingSideToMove);
+    const side = cursor.next() orelse
+        return FenError.MissingSideToMove;
 
-    position.side_to_move = if (std.mem.eql(u8, side, "w"))
+    position.side_to_move = if (side == 'w')
         .white
-    else if (std.mem.eql(u8, side, "b"))
+    else if (side == 'b')
         .black
     else
-        return failFenParsing(error_offset, fields.index - side.len, FenError.InvalidSideToMove);
+        return FenError.InvalidSideToMove;
+
+    const space = cursor.next() orelse
+        return FenError.MissingCastling;
+    if (space != ' ')
+        return FenError.InvalidSideToMove;
 
     // 3. Castling rights: KQkq (X-FEN) or Shredder-FEN file letters.
+    var castle = cursor.next() orelse
+        return FenError.MissingCastling;
+    while (castle != ' ') {
+
+    }
     const castling = fields.next() orelse
         return failFenParsing(error_offset, input.len, FenError.MissingCastling);
 

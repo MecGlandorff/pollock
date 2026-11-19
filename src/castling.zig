@@ -19,15 +19,15 @@ pub const Castling = packed struct(u4) {
 
     /// Returns the castling right for `color`.
     pub inline fn right(color: Color, king: bool) Castling {
-        return @bitCast(@as(CastlingInt, 1) << (@backingInt(color) * 2 + @backingInt(!king)));
+        return @fromBackingInt(@as(CastlingInt, 1) << (@backingInt(color) * 2 + @backingInt(!king)));
     }
 
     /// Adds `castling_right` to `self`.
-    pub inline fn addRight(self: Castling, castling_right: Castling) Castling {
-        return @bitCast(@as(CastlingInt, @bitCast(self)) | @as(CastlingInt, @bitCast(castling_right)));
+    pub inline fn addRight(self: *Castling, castling_right: Castling) void {
+        self.* = @fromBackingInt(@backingInt(self) | @backingInt(castling_right));
     }
 
     pub inline fn index(self: Castling) usize {
-        return @as(CastlingInt, @bitCast(self));
+        return @fromBackingInt(self);
     }
 };

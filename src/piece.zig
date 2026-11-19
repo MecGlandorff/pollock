@@ -51,9 +51,12 @@ pub const Piece = packed struct(u4) {
     }
 
     /// Returns `piece` as a character.
-    pub fn toChar(piece: Piece) u8 {
-        const character: [count]u8 = .{ 'P', 'p', 'N', 'n', 'B', 'b', 'R', 'r', 'Q', 'q', 'K', 'k' };
+    pub inline fn toChar(piece: Piece) u8 {
+        return .{ 'P', 'p', 'N', 'n', 'B', 'b', 'R', 'r', 'Q', 'q', 'K', 'k' }[piece.index()];
+    }
 
-        return character[@as(usize, @bitCast(piece))];
+    /// Returns `piece` as an index.
+    pub inline fn index(piece: Piece) usize {
+        return @backingInt(piece);
     }
 };

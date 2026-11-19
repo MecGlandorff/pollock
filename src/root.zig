@@ -28,5 +28,5 @@ pub const Square = board.Square;
 pub const File = board.File;
 pub const Rank = board.Rank;
 
-const zobrist = @import("zobrist.zig");
+pub const zobrist = @import("zobrist.zig");
 pub const ZobristKey = zobrist.ZobristKey;

@@ -39,7 +39,7 @@ pub const Square = enum(u6) {
     }
 
     /// Returns `square` relative to `color`.
-    pub inline fn relative(square: Square, color: Color) Square {
+    pub inline fn relative(color: Color, square: Square) Square {
         return @fromBackingInt(@backingInt(square) ^ (@as(SquareInt, @backingInt(color)) * 56));
     }
 
