@@ -60,7 +60,7 @@ pub const Square = enum(u6) {
 
     /// Returns a bitboard of `square`.
     pub inline fn bitboard(square: Square) Bitboard {
-        return .from(1 << @backingInt(square));
+        return .from(@as(u64, 1) << @backingInt(square));
     }
 };
 
