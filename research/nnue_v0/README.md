@@ -2,6 +2,12 @@
 
 Can Pollock train a small material evaluator, read its exported weights in Zig, and use them to finish a legal game? This experiment uses 768 piece-square inputs, 16 clipped hidden units, and one score in centipawns. [Stockfish’s piece-square feature example](https://official-stockfish.github.io/docs/nnue-pytorch-wiki/docs/nnue.html#a-simple-input-feature-set)
 
+## Main finding from this experiment
+
+On **1,350 held-out positions**, the exported network’s mean absolute error against exact material balance was **40.3 centipawns**. Given the same quantized weights, the Python reference and Zig returned identical integer scores on every position. Future experiments can compare new models against this material error and reuse the v0 weights to check changes to the Zig evaluator.
+
+The run used seed 7 and 40 epochs at commit `3a7089c`. The training command below writes the results to `runs/v0/run.json`.
+
 ## Run from the repository root
 
 Use Zig 0.17.1 and uv. The Python project and its lockfile live in `research/nnue_v0/`.
