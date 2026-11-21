@@ -14,6 +14,7 @@ pub fn featureIndex(piece: pollock.Piece, square: pollock.Square) usize {
 
 pub const Network = struct {
     version: u8,
+    score_unit: enum { centipawns, outcome_per_mille } = .centipawns,
     feature_weights: [12 * 64]Layer.WeightRow,
     hidden_bias: [hidden_size]i16,
     output_weights: [hidden_size]i16,
@@ -51,14 +52,15 @@ pub const Network = struct {
         }
     }
 
-    /// Returns centipawns from the perspective of the side to move.
+    /// Returns a score for the side to move in the unit stored in the network.
     pub fn score(net: *const Network, layer: *const Layer, turn: pollock.Color) i64 {
         var sum = @as(i64, net.output_bias) * 256;
         for (layer.values, net.output_weights) |value, weight| {
             sum += @as(i64, std.math.clamp(value, 0, 256)) * weight;
         }
-        const white_cp = @divTrunc(sum, 256);
-        return if (turn == .white) white_cp else -white_cp;
+        const raw = @divTrunc(sum, 256);
+        const white = if (net.score_unit == .outcome_per_mille) std.math.clamp(raw, -1000, 1000) else raw;
+        return if (turn == .white) white else -white;
     }
 };
 

@@ -57,13 +57,17 @@ def choose_move(board, evaluate):
                 scores[i] = float("inf")  # Checkmate delivered by the mover.
         finally:
             board.pop()
-    for i, child_cp in zip(pending, evaluate(fens), strict=True):
-        scores[i] = -child_cp  # The opponent is to move in the child position.
+    for i, child_score in zip(pending, evaluate(fens), strict=True):
+        scores[i] = -child_score  # The opponent is to move in the child position.
     return moves[max(range(len(moves)), key=scores.__getitem__)]
 
 
 def digest(path):
-    return hashlib.sha256(Path(path).read_bytes()).hexdigest()
+    sha = hashlib.sha256()
+    with Path(path).open("rb") as stream:
+        for chunk in iter(lambda: stream.read(1024 * 1024), b""):
+            sha.update(chunk)
+    return sha.hexdigest()
 
 
 @contextmanager
@@ -76,10 +80,10 @@ def recorded_run(out, exe, inputs, settings):
                   command=[sys.executable, *sys.argv], python=platform.python_version(),
                   chess=chess.__version__, pollock_sha256=digest(exe),
                   inputs={str(p.resolve()): digest(p) for p in inputs}, **settings)
-    patch = git("diff", "--binary", "HEAD")
+    patch = subprocess.check_output(["git", "diff", "--binary", "HEAD"], cwd=ROOT)
     out.mkdir(parents=True, exist_ok=False)
     if patch:
-        (out / "source.patch").write_text(patch + "\n")
+        (out / "source.patch").write_bytes(patch)
 
     def save():
         tmp = out / "run.tmp"
