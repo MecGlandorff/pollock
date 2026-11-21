@@ -19,6 +19,7 @@ pub const Bitboard = @import("Bitboard.zig");
 pub const Castling = @import("castling.zig").Castling;
 pub const Color = @import("color.zig").Color;
 pub const Move = @import("move.zig").Move;
+pub const nnue = @import("nnue.zig");
 pub const Piece = @import("piece.zig").Piece;
 pub const Position = @import("Position.zig");
 pub const XorShift64Star = @import("random.zig").XorShift64Star;

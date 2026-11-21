@@ -1,7 +1,6 @@
 const std = @import("std");
 
 const pollock = @import("pollock");
-const bitboard = pollock.bitboard;
 const Bitboard = pollock.Bitboard;
 const Castling = pollock.Castling;
 const Color = pollock.Color;
@@ -48,7 +47,7 @@ pub fn colorOccupancy(position: *const Position, color: Color) Bitboard {
 }
 
 pub fn pieceOccupancy(position: *const Position, color: Color, piece_type: Piece.Type) Bitboard {
-    return position.color_occupancy.get(color) & position.type_occupancy.get(piece_type);
+    return position.colorOccupancy(color).@"and"(position.type_occupancy.get(piece_type));
 }
 
 pub const FenError = error{
@@ -116,8 +115,10 @@ fn square(file: usize, rank: usize) Square {
 
 /// Squares on `rank` from file `a` to file `b`, both inclusive, in either order.
 fn span(rank: Rank, a: usize, b: usize) Bitboard {
-    var bb: Bitboard = 0;
-    for (@min(a, b)..@max(a, b) + 1) |file| bb |= square(file, @backingInt(rank)).bitboard(); // assumed
+    var bb: Bitboard = .empty;
+    for (@min(a, b)..@max(a, b) + 1) |file| {
+        bb = bb.@"or"(square(file, @backingInt(rank)).bitboard());
+    }
     return bb;
 }
 
@@ -175,8 +176,9 @@ fn addCastlingRight(position: *Position, color: Color, king_file: usize, rook_fi
     // assumed: indexed by the right's bitmask like Stockfish, i.e. Castling.count == 16.
     const index: usize = @as(u4, @bitCast(right));
     position.castling_rook_square[index] = rook_from;
-    position.castling_path[index] = (span(rank, rook_file, rook_to) | span(rank, king_file, king_to)) &
-        ~(king_from.bitboard() | rook_from.bitboard());
+    const path = span(rank, rook_file, rook_to).@"or"(span(rank, king_file, king_to));
+    const origins = king_from.bitboard().@"or"(rook_from.bitboard());
+    position.castling_path[index] = path.@"and"(origins.not());
 
     // Anything other than the classical king/rook files needs Chess960 move handling.
     if (king_file != 4 or (rook_file != 0 and rook_file != 7)) position.chess960 = true;
@@ -185,10 +187,10 @@ fn addCastlingRight(position: *Position, color: Color, king_file: usize, rook_fi
 pub fn placePiece(position: *Position, piece: Piece, sq: Square) void {
     std.debug.assert(position.board.get(sq) == null);
 
-    const bb = bitboard.fromSquare(sq); // assumed: Square.bitboard() Bitboard
+    const bb = sq.bitboard();
     position.board.set(sq, piece);
-    position.type_occupancy.getPtr(piece.type).* |= bb; // assumed: Piece.kind() Piece.Type
-    position.color_occupancy.getPtr(piece.color).* |= bb; // assumed: Piece.color() Color
+    position.type_occupancy.getPtr(piece.type).bits |= bb.bits;
+    position.color_occupancy.getPtr(piece.color).bits |= bb.bits;
 }
 
 /// Parses a FEN from the start of `input` and returns the unconsumed rest
@@ -206,20 +208,20 @@ pub fn setFen(
         .halfmove_clock = 0,
         .previous_info = null,
         .zobrist_key = 0,
-        .checkers = 0,
-        .blockers = .initFill(0),
+        .checkers = .empty,
+        .blockers = .initFill(.empty),
         .captured_piece = null,
         .repetition = 0,
     };
 
     position.* = .{
         .board = .initFill(null),
-        .type_occupancy = .initFill(0),
-        .color_occupancy = .initFill(0),
+        .type_occupancy = .initFill(.empty),
+        .color_occupancy = .initFill(.empty),
         .info = info,
         .castling_mask = .initFill(.none),
         .castling_rook_square = undefined,
-        .castling_path = @splat(0),
+        .castling_path = @splat(.empty),
         .side_to_move = undefined,
         .game_ply = 0,
         .chess960 = false,
@@ -344,7 +346,8 @@ pub fn setFen(
         FenError.MissingFullmoveNumber,
         FenError.InvalidFullmoveNumber,
     );
-    if (fullmove == 0)
+    const max_fullmove = std.math.maxInt(usize) / 2 + 1;
+    if (fullmove == 0 or fullmove > max_fullmove)
         return fail(diagnostics, fields.index - 1, FenError.InvalidFullmoveNumber);
 
     position.game_ply = 2 * (fullmove - 1) + @intFromBool(position.side_to_move == .black);

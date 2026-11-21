@@ -29,6 +29,7 @@ pub fn build(b: *std.Build) void {
 
     // Run executable.
     const run_command = b.addRunArtifact(pollock_exe);
+    run_command.addPassthruArgs();
     const run_step = b.step("run", "Run Pollock");
     run_step.dependOn(&run_command.step);
 
