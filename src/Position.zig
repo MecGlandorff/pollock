@@ -91,9 +91,25 @@ pub fn castlingPath(position: *const Position, castling_right: Castling) Bitboar
     return position.castling_path[castling_right.index()];
 }
 
+/// Returns the opponent pieces that give check to the side to move in `position`.
+pub fn checkers(position: *const Position) Bitboard {
+    return position.state.checkers;
+}
+
+/// Returns the castling rights that are still available in `position`.
+pub fn castlingRights(position: *const Position) Castling {
+    return position.state.castling_rights;
+}
+
 /// Returns the Zobrist key of `position`.
 pub fn zobristKey(position: *const Position) ZobristKey {
     return position.state.zobrist_key;
+}
+
+/// Returns whether any square on the castling path of `castling_right` in `position` is occupied. The castling king
+/// and rook themselves are not part of the path. Attacked squares are not considered.
+pub fn castlingObstructed(position: *const Position, castling_right: Castling) bool {
+    return position.totalOccupancy() & position.castlingPath(castling_right) != bitboard.empty;
 }
 
 /// Places `piece` on the empty `square` and updates the occupancies and the Zobrist key.

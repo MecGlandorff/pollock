@@ -70,12 +70,10 @@ pub const Move = packed struct(u16) {
         return create(source, destination, .en_passant, .knight);
     }
 
-    /// Creates a castle move for `color` in `position`. Castling must be possible, and `side` must be either
-    /// `Castling.kingside` or `Castling.queenside`.
-    pub fn createCastle(position: *const Position, color: Color, side: Castling) Move {
-        std.debug.assert(side == Castling.kingside or side == Castling.queenside);
-
-        const kingside = side == Castling.kingside;
+    /// Creates a castle move for `color` in `position`, on the king's side if `kingside` is true, else on the queen's
+    /// side. The right must be available. In Chess960 mode the destination is the castling rook's square, otherwise it
+    /// is g1/c1 (relative to `color`).
+    pub fn createCastle(position: *const Position, color: Color, kingside: bool) Move {
         const destination: Square = if (position.chess960)
             position.castlingRookSquare(.right(color, kingside))
         else

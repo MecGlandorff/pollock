@@ -6,6 +6,7 @@
 // Namespaces.
 pub const bitboard = @import("bitboard.zig");
 pub const direction = @import("direction.zig");
+pub const move_generation = @import("move_generation.zig");
 pub const zobrist = @import("zobrist.zig");
 
 // Board geometry.
