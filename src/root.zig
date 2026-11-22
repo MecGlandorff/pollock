@@ -18,6 +18,11 @@ pub const Square = board.Square;
 pub const Castling = @import("castling.zig").Castling;
 pub const Color = @import("color.zig").Color;
 pub const Move = @import("move.zig").Move;
+pub const search = @import("search.zig");
+pub const movegen = @import("move_generation.zig");
+pub const nnue = @import("nnue.zig");
+pub const king_nnue = @import("king_nnue.zig");
+pub const wide_nnue = @import("wide_nnue.zig");
 pub const Piece = @import("piece.zig").Piece;
 pub const Position = @import("Position.zig");
 
