@@ -23,6 +23,8 @@ const Keys = struct {
     en_passant: std.EnumArray(File, ZobristKey),
     /// XORed in when black is to move.
     side_to_move: ZobristKey,
+    /// Identifies the rook used for a Chess960 castling right.
+    castling_rook: std.EnumArray(Square, ZobristKey),
 };
 
 const keys: Keys = blk: {
@@ -37,6 +39,7 @@ const keys: Keys = blk: {
     for (&result.castle) |*key| key.* = random.rand();
     for (&result.en_passant.values) |*key| key.* = random.rand();
     result.side_to_move = random.rand();
+    for (&result.castling_rook.values) |*key| key.* = random.rand();
 
     break :blk result;
 };
@@ -53,6 +56,11 @@ pub inline fn pieceKey(piece: Piece, square: Square) ZobristKey {
 /// new one.
 pub inline fn castleKey(castle: Castling) ZobristKey {
     return keys.castle[castle.index()];
+}
+
+/// In Chess960, XOR in this key for each rook with a castling right, along with the key for the set of rights.
+pub inline fn castlingRookKey(square: Square) ZobristKey {
+    return keys.castling_rook.get(square);
 }
 
 /// Returns the key of an en passant square on `file`.

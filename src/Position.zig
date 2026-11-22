@@ -118,10 +118,10 @@ fn computeCheckers(position: *const Position, color: Color) Bitboard {
 
     // Reverse lookup: attacks are computed from the king's square and intersected with the piece types. Pawn attacks
     // use `color`'s own direction, since a checking pawn stands where our pawn on the king square would attack.
-    // No king term: a king can't give check.
     const attackers =
         (bitboard.baseAttacks(.forPawn(color), king_square) & position.typeOccupancy(.pawn)) |
         (bitboard.baseAttacks(.knight, king_square) & position.typeOccupancy(.knight)) |
+        (bitboard.baseAttacks(.king, king_square) & position.typeOccupancy(.king)) |
         (bishop_attacks & (position.typeOccupancy(.bishop) | queens)) |
         (rook_attacks & (position.typeOccupancy(.rook) | queens));
 
@@ -203,8 +203,8 @@ pub const FenError = error{
     UnexpectedEnd,
 };
 
-/// Parses a FEN from the start of `input` and returns the unconsumed rest (leading spaces removed), e.g.
-/// "moves e2e4 e7e5". Fields must be separated by exactly one space.
+/// Parses a FEN from the start of `input` and returns the unconsumed rest, e.g. "moves e2e4 e7e5".
+/// Accepts spaces and tabs before the board and between fields. Leading spaces and tabs are removed from the rest.
 ///
 /// Castling accepts `KQkq` (X-FEN: the outermost rook) and Shredder-FEN file letters. Rights that cannot be valid are
 /// dropped. If `chess960` is false, this includes rights that don't use the standard king and rook squares.
@@ -216,6 +216,7 @@ pub fn setFen(
     input: []const u8,
     chess960: bool,
 ) FenError![]const u8 {
+    const whitespace = " \t";
     // `index` points at the next unread byte, so after an error it is the offset to report.
     var cursor: struct {
         input: []const u8,
@@ -228,6 +229,18 @@ pub fn setFen(
             defer c.index += 1;
 
             return c.input[c.index];
+        }
+
+        fn skipWhitespace(c: *@This()) void {
+            const rest = c.input[c.index..];
+            c.index += rest.len - std.mem.trimStart(u8, rest, whitespace).len;
+        }
+
+        fn consumeSeparator(c: *@This(), err: FenError) FenError!void {
+            switch (try c.next()) {
+                ' ', '\t' => c.skipWhitespace(),
+                else => return err,
+            }
         }
     } = .{ .input = input };
 
@@ -257,11 +270,12 @@ pub fn setFen(
     };
 
     // 1. Piece placement. Piece keys are added to the Zobrist key by `placePiece`.
+    cursor.skipWhitespace();
     var ranks = std.mem.reverseIterator(std.enums.values(Rank));
     var rank = ranks.next().?;
     var file_count: usize = 0; // May reach 8, which `File` cannot represent.
     while (true) switch (try cursor.next()) {
-        ' ' => break,
+        ' ', '\t' => break,
         '/' => {
             if (file_count != File.count)
                 return FenError.InvalidPlacement;
@@ -305,6 +319,7 @@ pub fn setFen(
     }
 
     // 2. Side to move.
+    cursor.skipWhitespace();
     position.side_to_move = switch (try cursor.next()) {
         'w' => .white,
         'b' => .black,
@@ -314,25 +329,23 @@ pub fn setFen(
     if (position.side_to_move == .black)
         state.zobrist_key ^= zobrist.side_to_move_key;
 
-    if (try cursor.next() != ' ')
-        return FenError.InvalidSideToMove;
+    try cursor.consumeSeparator(FenError.InvalidSideToMove);
 
     // 3. Castling rights: `-`, or any of `KQkq` and file letters `A-Ha-h`.
     const castling_start = cursor.index;
     while (true) {
         const char = try cursor.next();
 
-        if (char == ' ') {
-            // Empty field (e.g. two consecutive spaces). No rights must be written as `-`.
-            if (cursor.index == castling_start + 1)
-                return FenError.InvalidCastling;
+        if (char == ' ' or char == '\t') {
+            cursor.skipWhitespace();
             break;
         }
 
         if (char == '-') {
             // Only valid as the entire field.
-            if (cursor.index != castling_start + 1 or try cursor.next() != ' ')
+            if (cursor.index != castling_start + 1)
                 return FenError.InvalidCastling;
+            try cursor.consumeSeparator(FenError.InvalidCastling);
             break;
         }
 
@@ -374,12 +387,17 @@ pub fn setFen(
 
     // One key per combination of rights, so this must come after all rights are known.
     state.zobrist_key ^= zobrist.castleKey(state.castling_rights);
+    if (chess960) {
+        for ([_]Castling{ .right(.white, true), .right(.white, false), .right(.black, true), .right(.black, false) }) |right| {
+            if (state.castling_rights.has(right))
+                state.zobrist_key ^= zobrist.castlingRookKey(position.castlingRookSquare(right));
+        }
+    }
 
     // 4. En passant target square (the square behind a pawn that just double-pushed).
     const en_passant_char = try cursor.next();
     if (en_passant_char == '-') {
-        if (try cursor.next() != ' ')
-            return FenError.InvalidEnPassant;
+        try cursor.consumeSeparator(FenError.InvalidEnPassant);
     } else {
         const en_passant_file = File.fromChar(en_passant_char) orelse
             return FenError.InvalidEnPassant;
@@ -389,8 +407,7 @@ pub fn setFen(
         const expected_rank: Rank = if (us == .white) .@"6" else .@"3";
         if (Rank.fromChar(try cursor.next()) != expected_rank)
             return FenError.InvalidEnPassant;
-        if (try cursor.next() != ' ')
-            return FenError.InvalidEnPassant;
+        try cursor.consumeSeparator(FenError.InvalidEnPassant);
 
         const target: Square = .fromCoords(en_passant_file, expected_rank);
         const start: Square = .fromCoords(en_passant_file, if (us == .white) .@"7" else .@"2"); // Where the pawn came from.
@@ -413,7 +430,7 @@ pub fn setFen(
     }
 
     // 5. Halfmove clock. The 50-move rule allows a draw claim at 100 plies, the 75-move rule ends the game at 150.
-    const halfmove_end = std.mem.indexOfScalarPos(u8, input, cursor.index, ' ') orelse
+    const halfmove_end = std.mem.findAnyPos(u8, input, cursor.index, whitespace) orelse
         return FenError.UnexpectedEnd;
     const halfmove = std.fmt.parseUnsigned(u32, input[cursor.index..halfmove_end], 10) catch
         return FenError.InvalidHalfmoveClock;
@@ -421,14 +438,16 @@ pub fn setFen(
         return FenError.InvalidHalfmoveClock;
 
     state.halfmove_clock = halfmove;
-    cursor.index = halfmove_end + 1;
+    cursor.index = halfmove_end;
+    cursor.skipWhitespace();
 
-    // 6. Fullmove number, ending at the next space or the end of input. Zero is tolerated and treated as one.
-    const fullmove_end = std.mem.indexOfScalarPos(u8, input, cursor.index, ' ') orelse input.len;
+    // 6. Fullmove number. Zero is tolerated and treated as one.
+    const fullmove_end = std.mem.findAnyPos(u8, input, cursor.index, whitespace) orelse input.len;
     const fullmove = std.fmt.parseUnsigned(u32, input[cursor.index..fullmove_end], 10) catch
         return FenError.InvalidFullmoveNumber;
 
-    position.game_ply = 2 * (@as(usize, @max(fullmove, 1)) - 1) + @intFromBool(position.side_to_move == .black);
+    const game_ply = 2 * (@as(u64, @max(fullmove, 1)) - 1) + @intFromBool(position.side_to_move == .black);
+    position.game_ply = std.math.cast(usize, game_ply) orelse return FenError.InvalidFullmoveNumber;
 
     state.checkers = position.computeCheckers(position.side_to_move);
 
@@ -440,7 +459,7 @@ pub fn setFen(
 
     // TODO: Drop the en passant square (and its Zobrist key) if no capture is legal, to match `doMove`.
 
-    return std.mem.trimStart(u8, input[fullmove_end..], " ");
+    return std.mem.trimStart(u8, input[fullmove_end..], whitespace);
 }
 
 pub fn setStartPosition(position: *Position, state: *State) void {

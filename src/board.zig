@@ -114,7 +114,8 @@ pub const Rank = enum(u3) {
 
     /// Returns the bitboard of all squares on `rank`.
     pub inline fn bitboard(rank: Rank) Bitboard {
-        return @as(Bitboard, 0x00000000000000FF) << (@as(Square.SquareInt, @backingInt(rank)) * File.count);
+        const shift = @as(Square.SquareInt, File.count) * @backingInt(rank);
+        return @as(Bitboard, 0x00000000000000FF) << shift;
     }
 
     /// Returns `rank` as seen from `color`: unchanged for white, mirrored for black (rank 1 becomes rank 8).
