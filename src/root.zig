@@ -1,32 +1,26 @@
 //! # Pollock
 //!
-//! This module provides the public interface to the chess engine.
-//! It exposes the core functionality required to represent chess
-//! positions, generate and validate moves, evaluate positions, and
-//! search for the best moves.
-//!
-//! The module is intended to serve as an entry point for other Zig
-//! projects that wish to use or integrate the engine's functionality.
-//! It provides a stable public interface while keeping internal
-//! implementation details encapsulated within their respective modules.
-//!
-//! Only functionality intended for external use is exposed through
-//! this module.
+//! A chess engine library. This root module is the single entry point: it re-exports the types and namespaces that
+//! the rest of the engine, and external projects, are meant to use.
 
-pub const chess960 = false;
-
+// Namespaces.
 pub const bitboard = @import("bitboard.zig");
+pub const direction = @import("direction.zig");
+pub const zobrist = @import("zobrist.zig");
+
+// Board geometry.
+const board = @import("board.zig");
+pub const File = board.File;
+pub const Rank = board.Rank;
+pub const Square = board.Square;
+
+// Core types.
 pub const Castling = @import("castling.zig").Castling;
-pub const Color = @import("color.zig");
+pub const Color = @import("color.zig").Color;
 pub const Move = @import("move.zig").Move;
 pub const Piece = @import("piece.zig").Piece;
 pub const Position = @import("Position.zig");
+
+// Utilities.
 pub const XorShift64Star = @import("random.zig").XorShift64Star;
-
-const board = @import("board.zig");
-pub const Square = board.Square;
-pub const File = board.File;
-pub const Rank = board.Rank;
-
-pub const zobrist = @import("zobrist.zig");
 pub const ZobristKey = zobrist.ZobristKey;

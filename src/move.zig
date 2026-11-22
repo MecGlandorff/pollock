@@ -7,22 +7,26 @@ const Piece = pollock.Piece;
 const Position = pollock.Position;
 const Square = pollock.Square;
 
+/// A move packed into 16 bits:
+///
+///     Bits 0-5:   source square,
+///     Bits 6-11:  destination square,
+///     Bits 12-13: move type,
+///     Bits 14-15: promotion piece type (knight to queen).
+///
+/// Castling is encoded as the king moving onto its own rook (the source is the king square, the destination is the
+/// rook square) in Chess960 mode, and onto g1/c1 (relative to the color) otherwise.
 pub const Move = packed struct(u16) {
-    // We use 16 bits to describe a move. We need 6 bits for the source square as well as the destination square.
-    // The remaining 4 bits are used for special moves:
-    //
-    //      Bits 0-5: source square (0-63),
-    //      Bits 6-11: destination square (0-63),
-    //      Bits 12-13: special bits (normal: 0, promotion: 1, castle: 2, en passant: 3),
-    //      Bits 14-15: promotion piece - 1
-
     source: Square = .a1,
     destination: Square = .a1,
     move_type: Type = .normal,
+    /// Only meaningful for promotions, otherwise always `.knight` so equal moves compare equal.
     promotion: Promotion = .knight,
 
+    /// Upper bound on the number of legal moves in any position, used to size move lists.
     pub const max_moves = 256;
 
+    /// The null move, with source equal to destination. No legal move looks like this.
     pub const null_move: Move = .{};
 
     pub const Type = enum(u2) {
@@ -39,8 +43,8 @@ pub const Move = packed struct(u16) {
         queen,
     };
 
-    /// Returns `true` if `move`s source is equal to its destination.
-    pub inline fn isWeird(move: Move) bool {
+    /// Returns whether the source of `move` equals its destination, which should only be the case for the null move.
+    pub inline fn isNull(move: Move) bool {
         return move.source == move.destination;
     }
 
@@ -66,32 +70,26 @@ pub const Move = packed struct(u16) {
         return create(source, destination, .en_passant, .knight);
     }
 
-    /// Creates a new castle move. Castling must be possible and `side` must be equal to either `Castling.kingside`
-    /// or `Castling.queenside`.
+    /// Creates a castle move for `color` in `position`. Castling must be possible, and `side` must be either
+    /// `Castling.kingside` or `Castling.queenside`.
     pub fn createCastle(position: *const Position, color: Color, side: Castling) Move {
-        std.debug.assert(side == .kingside or side == .queenside);
+        std.debug.assert(side == Castling.kingside or side == Castling.queenside);
 
-        var destination: Square = undefined;
-        if (position.chess960) {
-            const castle: Castling = .right(color, side == .kingside);
-            destination = position.castleRookSquare(castle);
-        } else {
-            destination = .relative(switch (side) {
-                Castling.kingside => .g1,
-                Castling.queenside => .c1,
-                else => unreachable,
-            }, color);
-        }
+        const kingside = side == Castling.kingside;
+        const destination: Square = if (position.chess960)
+            position.castlingRookSquare(.right(color, kingside))
+        else
+            .relative(if (kingside) .g1 else .c1, color);
 
         return .create(position.kingSquare(color), destination, .castle, .knight);
     }
 
-    /// Returns the piece type of the promotion of `move`.
+    /// Returns the piece type that `move` promotes to. Only valid for promotions.
     pub inline fn promotionPieceType(move: Move) Piece.Type {
-        return @fromBackingInt(@as(u32, @backingInt(move.promotion)) + 1);
+        return @fromBackingInt(@as(Piece.Type.TypeInt, @backingInt(move.promotion)) + 1);
     }
 
-    /// Returns the character corresponding the promotion type of `move`.
+    /// Returns the character of the promotion piece of `move` in UCI notation (`n`, `b`, `r`, `q`).
     pub inline fn promotionChar(move: Move) u8 {
         return switch (move.promotion) {
             .knight => 'n',

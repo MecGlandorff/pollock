@@ -1,3 +1,4 @@
+/// The side to move, or the owner of a piece.
 pub const Color = enum(u1) {
     white = 0,
     black,
