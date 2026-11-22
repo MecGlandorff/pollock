@@ -3,6 +3,7 @@ const std = @import("std");
 const pollock = @import("pollock");
 const Bitboard = pollock.bitboard.Bitboard;
 const Color = pollock.Color;
+const Direction = pollock.direction.Direction;
 
 /// A board square in little-endian rank-file order: `a1` is 0, `h1` is 7, `a2` is 8 and `h8` is 63.
 pub const Square = enum(u6) {
@@ -27,6 +28,12 @@ pub const Square = enum(u6) {
     /// Returns `square` as seen from `color`: unchanged for white, mirrored vertically for black (`e1` becomes `e8`).
     pub inline fn relative(square: Square, color: Color) Square {
         return @fromBackingInt(@backingInt(square) ^ (@as(SquareInt, @backingInt(color)) * 56));
+    }
+
+    /// Returns `square` displaced by `direction`. The result must be on the board, so the caller has to rule out steps
+    /// over an edge (e.g. `north` from rank 8 or `east` from the h-file, which would wrap to the next rank).
+    pub inline fn step(square: Square, direction: Direction) Square {
+        return @fromBackingInt(@intCast(@as(Direction, @backingInt(square)) + direction));
     }
 
     /// Returns whether `square1` comes before `square2` in square order.
