@@ -21,22 +21,40 @@ pub fn main(init: std.process.Init) !void {
 
     var position: Position = undefined;
     var info: Position.Info = undefined;
+    if (args.len == 1 or std.mem.eql(u8, args[1], "uci") or std.mem.eql(u8, args[1], "--weights")) {
+        const uci = @import("uci.zig");
+        const start: usize = if (args.len > 1 and std.mem.eql(u8, args[1], "uci")) 2 else 1;
+        var net: ?pollock.nnue.Network = null;
+        if (args.len > start) {
+            if (args.len != start + 2 or !std.mem.eql(u8, args[start], "--weights")) return error.ExpectedWeightsPath;
+            net = try uci.loadWeights(io, std.heap.page_allocator, args[start + 1]);
+        }
+        return uci.loop(io, stdout_writer, net);
+    }
+    if (args.len >= 2 and std.mem.eql(u8, args[1], "perft")) {
+        if (args.len < 3 or args.len > 4) return error.ExpectedDepthAndOptionalFen;
+        const depth = try std.fmt.parseUnsigned(u8, args[2], 10);
+        if (args.len == 4) try readFen(&position, &info, args[3]) else position.setStartPosition(&info);
+        const board = try pollock.movegen.Board.fromPosition(&position, null);
+        try stdout_writer.print("{d}\n", .{pollock.movegen.perft(&board, depth)});
+        return stdout_writer.flush();
+    }
     if (args.len >= 2 and std.mem.eql(u8, args[1], "eval")) {
         const explicit_weights = args.len > 2 and std.mem.eql(u8, args[2], "--weights");
         const first_fen: usize = if (explicit_weights) 4 else 2;
         if (args.len <= first_fen) return error.ExpectedFen;
         const path = if (explicit_weights) args[3] else "runs/v0/network.json";
-        const bytes = try Io.Dir.cwd().readFileAlloc(io, path, arena, .limited(256 * 1024));
+        const bytes = try Io.Dir.cwd().readFileAlloc(io, path, arena, .limited(4 * 1024 * 1024));
         const net = try pollock.nnue.Network.load(arena, bytes);
         try readFen(&position, &info, args[first_fen]);
-        const base = net.refresh(&position);
+        const base = try net.refreshChecked(&position);
         try stdout_writer.print("{d}\n", .{net.score(&base, position.side_to_move)});
         for (args[first_fen + 1 ..]) |fen| {
             var child: Position = undefined;
             var child_info: Position.Info = undefined;
             try readFen(&child, &child_info, fen);
             var layer = base;
-            net.update(&layer, &position, &child);
+            try net.updateChecked(&layer, &position, &child);
             try stdout_writer.print("{d}\n", .{net.score(&layer, child.side_to_move)});
         }
     } else {
