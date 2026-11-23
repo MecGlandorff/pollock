@@ -44,6 +44,12 @@ test "Chess960 keys distinguish castling rooks on the same side" {
     try std.testing.expectEqual(Square.f1.bitboard(), outer.castlingPath(right) & outer.totalOccupancy());
     try std.testing.expect(inner.zobristKey() != outer.zobristKey());
 
+    const inner_key = inner.zobristKey();
+    _ = try inner.setFenAutoVariant(&inner_state, pieces ++ "F - 0 1");
+    try std.testing.expectEqual(inner_key, inner.zobristKey());
+    _ = try inner.setFen(&inner_state, pieces ++ "F - 0 1", false);
+    try std.testing.expectEqual(pollock.Castling.none, inner_state.castling_rights);
+
     const outer_key = outer.zobristKey();
     _ = try outer.setFen(&outer_state, pieces ++ "KK - 0 1", true);
     try std.testing.expectEqual(outer_key, outer.zobristKey());

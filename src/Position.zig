@@ -216,6 +216,20 @@ pub fn setFen(
     input: []const u8,
     chess960: bool,
 ) FenError![]const u8 {
+    return position.parseFen(state, input, if (chess960) .chess960 else .standard);
+}
+
+/// Infers Chess960 when a castling right uses a nonstandard king or rook square.
+pub fn setFenAutoVariant(position: *Position, state: *State, input: []const u8) FenError![]const u8 {
+    return position.parseFen(state, input, .detect);
+}
+
+fn parseFen(
+    position: *Position,
+    state: *State,
+    input: []const u8,
+    variant: enum { standard, chess960, detect },
+) FenError![]const u8 {
     const whitespace = " \t";
     // `index` points at the next unread byte, so after an error it is the offset to report.
     var cursor: struct {
@@ -266,7 +280,7 @@ pub fn setFen(
         .castling_path = @splat(undefined), // Only read for rights that are set.
         .side_to_move = undefined, // Set below.
         .game_ply = undefined, // Set below.
-        .chess960 = chess960,
+        .chess960 = variant == .chess960,
     };
 
     // 1. Piece placement. Piece keys are added to the Zobrist key by `placePiece`.
@@ -377,9 +391,12 @@ pub fn setFen(
         // Outermost rook: highest square kingside, lowest queenside. A file letter leaves a single candidate.
         const rook_square: Square = if (lower == 'k') bitboard.msb(rooks) else bitboard.lsb(rooks);
 
-        if (!chess960 and (king_square != Square.e1.relative(color) or
+        if (!position.chess960 and (king_square != Square.e1.relative(color) or
             rook_square != Square.relative(if (king_square.less(rook_square)) .h1 else .a1, color)))
-            continue;
+        {
+            if (variant == .standard) continue;
+            position.chess960 = true;
+        }
 
         // Duplicate rights (e.g. `KK`) are idempotent.
         position.addCastlingRight(color, rook_square);
@@ -387,7 +404,7 @@ pub fn setFen(
 
     // One key per combination of rights, so this must come after all rights are known.
     state.zobrist_key ^= zobrist.castleKey(state.castling_rights);
-    if (chess960) {
+    if (position.chess960) {
         for ([_]Castling{ .right(.white, true), .right(.white, false), .right(.black, true), .right(.black, false) }) |right| {
             if (state.castling_rights.has(right))
                 state.zobrist_key ^= zobrist.castlingRookKey(position.castlingRookSquare(right));

@@ -86,7 +86,7 @@ const Session = struct {
                 original.setStartPosition(&state);
                 rest = std.mem.trim(u8, text["startpos".len..], " \t");
             } else if (std.mem.startsWith(u8, text, "fen ")) {
-                rest = try original.setFen(&state, text[4..], false);
+                rest = try original.setFenAutoVariant(&state, text[4..]);
                 rest = std.mem.trim(u8, rest, " \t");
             } else return error.InvalidPosition;
             current = try mg.Board.fromPosition(&original, self.net());

@@ -13,6 +13,18 @@ import chess
 from arena import DEFAULT_EXE, zig_scores
 
 
+INNER_ROOK_FEN = "4k3/8/8/8/8/8/8/4KR1R w F - 0 1"
+
+
+class PerftTest(unittest.TestCase):
+    def test_rejects_castling_with_a_nonstandard_rook_or_king(self):
+        for fen in (INNER_ROOK_FEN, "r1k5/8/8/8/8/8/8/4K3 b q - 0 1"):
+            with self.subTest(fen=fen):
+                run = subprocess.run([DEFAULT_EXE, "perft", "1", fen], capture_output=True, text=True)
+                self.assertNotEqual(run.returncode, 0)
+                self.assertIn("UnsupportedChess960", run.stderr)
+
+
 class NativeEvaluationTest(unittest.TestCase):
     def test_loaded_networks_score_both_turns_and_an_updated_position(self):
         queen = "7k/8/8/8/8/8/4Q3/4K3 w - - 0 1"
@@ -77,6 +89,14 @@ class UciSearchTest(unittest.TestCase):
             observed.append(line)
             if line.startswith(prefix):
                 return observed
+
+    def test_rejected_chess960_position_preserves_standard_castling(self):
+        self.send("position fen 4k3/8/8/8/8/8/8/4K2R w H - 0 1")
+        self.send("position fen " + INNER_ROOK_FEN)
+        self.send("isready")
+        self.assertEqual(self.through("readyok"), ["info string UnsupportedChess960", "readyok"])
+        self.send("go depth 1 searchmoves e1g1")
+        self.assertEqual(self.through("bestmove ")[-1], "bestmove e1g1")
 
     def test_infinite_mate_waits_for_stop_and_sends_one_bestmove(self):
         fen = "7k/8/5KQ1/8/8/8/8/8 w - - 0 1"

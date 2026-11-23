@@ -5,7 +5,7 @@ const pollock = @import("pollock");
 const Position = pollock.Position;
 
 fn readFen(position: *Position, state: *Position.State, fen: []const u8) !void {
-    const rest = try position.setFen(state, fen, false);
+    const rest = try position.setFenAutoVariant(state, fen);
     if (rest.len != 0) return error.UnexpectedFenSuffix;
 }
 
