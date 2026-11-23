@@ -1,2 +1,5 @@
 /.zig-cache
 /zig-out
+/runs/
+/research/nnue_v0/.venv/
+/research/nnue_v0/__pycache__/

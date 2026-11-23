@@ -294,8 +294,8 @@ pub const FenError = error{
     UnexpectedEnd,
 };
 
-/// Parses a FEN from the start of `input` and returns the unconsumed rest (leading spaces removed), e.g.
-/// "moves e2e4 e7e5". Fields must be separated by exactly one space.
+/// Parses a FEN from the start of `input` and returns the unconsumed rest, e.g. " moves e2e4 e7e5". Fields must be
+/// separated by exactly one space.
 ///
 /// Castling accepts `KQkq` (X-FEN: the outermost rook) and Shredder-FEN file letters. Rights that cannot be valid are
 /// dropped. If `chess960` is false, this includes rights that don't use the standard king and rook squares.
@@ -533,7 +533,7 @@ pub fn setFen(
 
     // TODO: Drop the en passant square (and its Zobrist key) if no capture is legal, to match `doMove`.
 
-    return std.mem.trimStart(u8, input[fullmove_end..], " ");
+    return input[fullmove_end..];
 }
 
 pub fn setStartPosition(position: *Position, state: *State) void {

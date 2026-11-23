@@ -262,7 +262,8 @@ const DualMagic = struct {
 
     /// Returns the bishop and rook attacks given `occupancy`.
     fn bothAttacks(dual_magic: *const DualMagic, occupancy: Bitboard) struct { Bitboard, Bitboard } {
-        const row = dual_magic.rank_attacks_table[(occupancy >> (dual_magic.rank_shift + 1)) & 0x3F];
+        const rank_occupancy: u6 = @truncate(occupancy >> (dual_magic.rank_shift + 1));
+        const row = dual_magic.rank_attacks_table[rank_occupancy];
         const rank_attacks = @as(Bitboard, row) << dual_magic.rank_shift;
 
         const bishops = dual_magic.hyperbola(dual_magic.diagonal_mask, occupancy) | dual_magic.hyperbola(dual_magic.antidiagonal_mask, occupancy);
@@ -385,11 +386,13 @@ pub fn format(bitboard: Bitboard, writer: *std.Io.Writer) std.Io.Writer.Error!vo
     var ranks = std.mem.reverseIterator(std.enums.values(Rank));
     while (ranks.next()) |rank| {
         for (std.enums.values(File)) |file| {
-            try writer.print("| {c} ", .{if (bitboard & fromCoords(file, rank) == empty) ' ' else 'X'});
+            const symbol: u8 = if (bitboard & fromCoords(file, rank) == empty) ' ' else 'X';
+
+            try writer.print("| {c} ", .{symbol});
         }
 
         try writer.print("| {s}\n" ++ separator, .{@tagName(rank)});
     }
 
-    writer.print("  a   b   c   d   e   f   g   h\nHex: 0x{x:0>16}", .{bitboard});
+    try writer.print("  a   b   c   d   e   f   g   h\nHex: 0x{x:0>16}", .{bitboard});
 }

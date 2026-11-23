@@ -7,46 +7,36 @@ const move_gen = pollock.move_generation;
 const MoveList = move_gen.MoveList;
 const Position = pollock.Position;
 
+fn readFen(position: *Position, state: *Position.State, fen: []const u8, chess960: bool) !void {
+    const rest = try position.setFen(state, fen, chess960);
+    if (rest.len != 0) return error.UnexpectedFenSuffix;
+}
+
 pub fn main(init: std.process.Init) !void {
-    const arena: std.mem.Allocator = init.arena.allocator();
-
+    const arena = init.arena.allocator();
     const args = try init.minimal.args.toSlice(arena);
-    for (args) |arg| {
-        std.log.info("arg: {s}", .{arg});
-    }
-
-    const io = init.io;
 
     var stdout_buffer: [1024]u8 = undefined;
-    var stdout_file_writer: Io.File.Writer = .init(.stdout(), io, &stdout_buffer);
-    const stdout_writer = &stdout_file_writer.interface;
+    var stdout_file_writer: Io.File.Writer = .init(.stdout(), init.io, &stdout_buffer);
+    const stdout = &stdout_file_writer.interface;
 
-    var pos: Position = undefined;
+    var position: Position = undefined;
     var state: Position.State = undefined;
-    pos.setStartPosition(&state);
-    try stdout_writer.print("{f}\n", .{pos});
 
-    var buffer: [pollock.Move.max_moves]Move = undefined;
-    var moves: MoveList = .initBuffer(&buffer);
-    move_gen.generateLegalMoves(&pos, &moves, .all);
+    if (args.len >= 2 and std.mem.eql(u8, args[1], "perft")) {
+        if (args.len < 3 or args.len > 4) return error.ExpectedDepthAndOptionalFen;
 
-    try stdout_writer.print("{d}\n", .{moves.items.len});
-    for (moves.items) |move| {
-        try move.print(false, stdout_writer);
-        try stdout_writer.writeByte('\n');
+        const depth = try std.fmt.parseUnsigned(u8, args[2], 10);
+        if (args.len == 4)
+            try readFen(&position, &state, args[3], false)
+        else
+            position.setStartPosition(&state);
+
+        try stdout.print("{d}\n", .{pollock.perft.perft(&position, depth)});
+    } else {
+        position.setStartPosition(&state);
+        try stdout.print("{f}\n", .{position});
     }
 
-    moves.clearRetainingCapacity();
-
-    pos.setKiwipetePosition(&state);
-    try stdout_writer.print("{f}\n", .{pos});
-    move_gen.generateLegalMoves(&pos, &moves, .all);
-
-    try stdout_writer.print("{d}\n", .{moves.items.len});
-    for (moves.items) |move| {
-        try move.print(false, stdout_writer);
-        try stdout_writer.writeByte('\n');
-    }
-
-    try stdout_writer.flush();
+    try stdout.flush();
 }
