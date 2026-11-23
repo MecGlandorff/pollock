@@ -21,33 +21,30 @@ pub const Castling = packed struct(u4) {
     pub const count = 1 << @bitSizeOf(Castling);
 
     pub const none: Castling = .{};
-    pub const white: Castling = .{ .white_00 = 1, .white_000 = 1 };
-    pub const black: Castling = .{ .black_00 = 1, .black_000 = 1 };
-    pub const kingside: Castling = .{ .white_00 = 1, .black_00 = 1 };
-    pub const queenside: Castling = .{ .white_000 = 1, .black_000 = 1 };
+    pub const all: Castling = .{ .white_00 = 1, .white_000 = 1, .black_00 = 1, .black_000 = 1 };
 
-    /// Returns the single castling right of `color` on the king's side (`king == true`) or the queen's side.
-    pub inline fn right(color: Color, king: bool) Castling {
-        const shift: u2 = @as(u2, @backingInt(color)) * 2 + @intFromBool(!king);
+    /// Returns the single right of `color` on the king's side if `kingside` is true, else on the queen's side.
+    pub inline fn right(color: Color, kingside: bool) Castling {
+        const shift: u2 = @as(u2, @backingInt(color)) * 2 + @intFromBool(!kingside);
         return @fromBackingInt(@as(CastlingInt, 1) << shift);
     }
 
     /// Adds the rights in `mask` to `castling`.
-    pub inline fn addRight(castling: *Castling, mask: Castling) void {
+    pub inline fn addRights(castling: *Castling, mask: Castling) void {
         castling.* = @fromBackingInt(@backingInt(castling.*) | @backingInt(mask));
     }
 
     /// Removes the rights in `mask` from `castling`.
-    pub inline fn removeRight(castling: *Castling, mask: Castling) void {
+    pub inline fn removeRights(castling: *Castling, mask: Castling) void {
         castling.* = @fromBackingInt(@backingInt(castling.*) & ~@backingInt(mask));
     }
 
     /// Returns whether `castling` contains any of the rights in `mask`.
-    pub inline fn has(castling: Castling, mask: Castling) bool {
+    pub inline fn hasAny(castling: Castling, mask: Castling) bool {
         return @backingInt(castling) & @backingInt(mask) != 0;
     }
 
-    /// Returns the value of the set as an integer below `count`. For a single right (see `right`) this is 1, 2, 4 or 8.
+    /// Returns the set as an integer below `count`. A single right (see `right`) gives 1, 2, 4 or 8.
     pub inline fn index(castling: Castling) usize {
         return @backingInt(castling);
     }

@@ -2,6 +2,9 @@ const std = @import("std");
 const Io = std.Io;
 
 const pollock = @import("pollock");
+const Move = pollock.Move;
+const move_gen = pollock.move_generation;
+const MoveList = move_gen.MoveList;
 const Position = pollock.Position;
 
 pub fn main(init: std.process.Init) !void {
@@ -23,8 +26,27 @@ pub fn main(init: std.process.Init) !void {
     pos.setStartPosition(&state);
     try stdout_writer.print("{f}\n", .{pos});
 
+    var buffer: [pollock.Move.max_moves]Move = undefined;
+    var moves: MoveList = .initBuffer(&buffer);
+    move_gen.generateLegalMoves(&pos, &moves, .all);
+
+    try stdout_writer.print("{d}\n", .{moves.items.len});
+    for (moves.items) |move| {
+        try move.print(false, stdout_writer);
+        try stdout_writer.writeByte('\n');
+    }
+
+    moves.clearRetainingCapacity();
+
     pos.setKiwipetePosition(&state);
     try stdout_writer.print("{f}\n", .{pos});
+    move_gen.generateLegalMoves(&pos, &moves, .all);
+
+    try stdout_writer.print("{d}\n", .{moves.items.len});
+    for (moves.items) |move| {
+        try move.print(false, stdout_writer);
+        try stdout_writer.writeByte('\n');
+    }
 
     try stdout_writer.flush();
 }

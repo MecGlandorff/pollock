@@ -36,6 +36,14 @@ pub const Piece = packed struct(u4) {
         pub fn forPawn(color: Color) AttackType {
             return @fromBackingInt(@as(AttackTypeInt, @backingInt(color)) * @backingInt(AttackType.black_pawn));
         }
+
+        /// Returns the attack type of the non-pawn `piece_type`. Pawns are excluded because their attacks depend on
+        /// color, so use `forPawn` for them.
+        pub fn fromType(piece_type: Type) AttackType {
+            std.debug.assert(piece_type != .pawn);
+
+            return @fromBackingInt(@backingInt(piece_type));
+        }
     };
 
     pub const white_pawn = create(.white, .pawn);

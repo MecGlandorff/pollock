@@ -28,16 +28,20 @@ game_ply: usize,
 side_to_move: Color,
 chess960: bool,
 
-/// Per-move state that cannot, or is expensive, to be recomputed on undo.
+/// Per-move state that cannot be recomputed on undo, or is expensive to.
 pub const State = struct {
     previous_state: ?*const State,
     /// Opponent pieces giving check to the side to move.
     checkers: Bitboard,
     /// Pieces of either color that are the only piece between an opposing slider and the king of the indexed color.
     blockers: std.EnumArray(Color, Bitboard),
+    /// Squares attacked by the opponent, per piece type. Only valid if `all_threats` is not empty (see `allThreats`).
+    threats: std.EnumArray(Piece.Type, Bitboard),
+    /// Union of `threats`, or empty if they have not been computed yet.
+    all_threats: Bitboard,
     castling_rights: Castling,
     captured_piece: ?Piece,
-    /// Only set if a pawn can capture there (see `setFen` and `doMove`s).
+    /// Only set if a pawn can capture there (see `setFen` and `doMove`).
     en_passant_square: ?Square,
     zobrist_key: ZobristKey,
     halfmove_clock: u32,
@@ -91,14 +95,32 @@ pub fn castlingPath(position: *const Position, castling_right: Castling) Bitboar
     return position.castling_path[castling_right.index()];
 }
 
+/// Returns the color of the side to move in `position`.
+pub fn sideToMove(position: *const Position) Color {
+    return position.side_to_move;
+}
+
 /// Returns the opponent pieces that give check to the side to move in `position`.
 pub fn checkers(position: *const Position) Bitboard {
     return position.state.checkers;
 }
 
+/// Returns the pieces of either color that are the only piece between an opposing slider and the king of `color` in
+/// `position`. Moving such a piece off the line exposes the king, so a blocker of the side to move is pinned, and a
+/// blocker of the opponent gives a discovered check when it moves.
+pub fn blockers(position: *const Position, color: Color) Bitboard {
+    return position.state.blockers.get(color);
+}
+
 /// Returns the castling rights that are still available in `position`.
 pub fn castlingRights(position: *const Position) Castling {
     return position.state.castling_rights;
+}
+
+/// Returns the en passant target square of `position`, or `null` if there is none. The square is only set if a pawn
+/// of the side to move can capture there, so it can be `null` right after a double push.
+pub fn enPassantSquare(position: *const Position) ?Square {
+    return position.state.en_passant_square;
 }
 
 /// Returns the Zobrist key of `position`.
@@ -110,6 +132,59 @@ pub fn zobristKey(position: *const Position) ZobristKey {
 /// and rook themselves are not part of the path. Attacked squares are not considered.
 pub fn castlingObstructed(position: *const Position, castling_right: Castling) bool {
     return position.totalOccupancy() & position.castlingPath(castling_right) != bitboard.empty;
+}
+
+/// Returns the squares attacked by opponent pieces of `piece_type`, including squares of their own pieces they defend.
+/// Sliders see through the king of the side to move. Computed on first use and cached in the state.
+pub fn threats(position: *const Position, comptime piece_type: Piece.Type) Bitboard {
+    _ = position.allThreats();
+
+    return position.state.threats.get(piece_type);
+}
+
+/// Returns the squares attacked by any opponent piece, as in `threats`.
+pub fn allThreats(position: *const Position) Bitboard {
+    // If not in stalemate, there is always a move and hence an attack.
+    if (position.state.all_threats == bitboard.empty)
+        position.computeThreats();
+
+    return position.state.all_threats;
+}
+
+fn computeThreats(position: *const Position) void {
+    const us = position.sideToMove();
+    const them = us.opposite();
+
+    // Removing our king makes sliders attack through its square, so it cannot step backwards along a check.
+    const occupancy = position.totalOccupancy() ^ position.kingSquare(us).bitboard();
+
+    var all = bitboard.empty;
+
+    inline for (std.enums.values(Piece.Type)) |piece_type| {
+        const piece_threats = position.attackedBy(them, piece_type, occupancy);
+        position.state.threats.set(piece_type, piece_threats);
+        all |= piece_threats;
+    }
+
+    position.state.all_threats = all;
+}
+
+/// Returns the squares attacked by the pieces of `piece_type` and `color`, with sliders blocked by `occupancy`.
+fn attackedBy(position: *const Position, color: Color, comptime piece_type: Piece.Type, occupancy: Bitboard) Bitboard {
+    if (comptime piece_type == .pawn) {
+        return switch (color) {
+            .white => bitboard.pawnAttacks(.white, position.pieceOccupancy(.white, .pawn)),
+            .black => bitboard.pawnAttacks(.black, position.pieceOccupancy(.black, .pawn)),
+        };
+    }
+
+    var pieces = position.pieceOccupancy(color, piece_type);
+    var result = bitboard.empty;
+
+    while (pieces != bitboard.empty)
+        result |= bitboard.attacks(.fromType(piece_type), bitboard.popLsb(&pieces), occupancy);
+
+    return result;
 }
 
 /// Places `piece` on the empty `square` and updates the occupancies and the Zobrist key.
@@ -157,7 +232,7 @@ fn computeBlockers(position: *const Position, color: Color) Bitboard {
 
     // `between` includes the king's square, which is not a blocker.
     const blocker_mask = position.totalOccupancy() ^ king_square.bitboard();
-    var blockers = bitboard.empty;
+    var blockers_bb = bitboard.empty;
     while (pinners != bitboard.empty) {
         const pinner_square = bitboard.popLsb(&pinners);
         const potential_blockers = bitboard.between(pinner_square, king_square) & blocker_mask;
@@ -165,10 +240,10 @@ fn computeBlockers(position: *const Position, color: Color) Bitboard {
         // Exactly one piece in between is a blocker. With none the king is in check, with two or more nothing is
         // pinned.
         if (!bitboard.popcountGreaterThanOne(potential_blockers))
-            blockers |= potential_blockers;
+            blockers_bb |= potential_blockers;
     }
 
-    return blockers;
+    return blockers_bb;
 }
 
 /// Registers the castling right of `color` that uses the rook on `rook_source`. The king must be on the same rank as
@@ -180,11 +255,11 @@ fn addCastlingRight(position: *Position, color: Color, rook_source: Square) void
     const right: Castling = .right(color, kingside);
     const index = right.index();
 
-    position.state.castling_rights.addRight(right);
+    position.state.castling_rights.addRights(right);
 
     // Moving the king or the rook, or capturing the rook, revokes the right.
-    position.castling_rights_mask.getPtr(king_source).addRight(right);
-    position.castling_rights_mask.getPtr(rook_source).addRight(right);
+    position.castling_rights_mask.getPtr(king_source).addRights(right);
+    position.castling_rights_mask.getPtr(rook_source).addRights(right);
     position.castling_rook_square[index] = rook_source;
 
     // Castling always ends with the king on g1/c1 and the rook on f1/d1 (relative to `color`).
@@ -251,6 +326,8 @@ pub fn setFen(
         .previous_state = null,
         .checkers = bitboard.empty,
         .blockers = .initFill(bitboard.empty),
+        .threats = .initUndefined(),
+        .all_threats = bitboard.empty,
         .castling_rights = .none,
         .captured_piece = null,
         .en_passant_square = null,
@@ -506,7 +583,7 @@ pub fn writeFen(position: *const Position, writer: *std.Io.Writer) std.Io.Writer
             for ([_]bool{ true, false }) |kingside| {
                 const right: Castling = .right(color, kingside);
 
-                if (!rights.has(right))
+                if (!rights.hasAny(right))
                     continue;
 
                 const char: u8 = if (position.chess960)

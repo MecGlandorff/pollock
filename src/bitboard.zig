@@ -111,8 +111,8 @@ const base_attacks: std.EnumArray(Piece.AttackType, std.EnumArray(Square, Bitboa
     var base: std.EnumArray(Piece.AttackType, std.EnumArray(Square, Bitboard)) = .initFill(.initUndefined());
 
     for (std.enums.values(Square)) |square| {
-        base.getPtr(.white_pawn).set(square, pawnAttacks(square, .white));
-        base.getPtr(.black_pawn).set(square, pawnAttacks(square, .black));
+        base.getPtr(.white_pawn).set(square, pawnAttacks(.white, square.bitboard()));
+        base.getPtr(.black_pawn).set(square, pawnAttacks(.black, square.bitboard()));
         base.getPtr(.knight).set(square, nonSliderAttacks(.knight, square));
         base.getPtr(.king).set(square, nonSliderAttacks(.king, square));
 
@@ -132,15 +132,15 @@ pub fn baseAttacks(piece_type: Piece.AttackType, square: Square) Bitboard {
     return base_attacks.getPtrConst(piece_type).get(square);
 }
 
-/// Comptime function that returns the squares attacked by a pawn of `color` on `square`.
-fn pawnAttacks(comptime square: Square, comptime color: Color) Bitboard {
-    const square_bb = square.bitboard();
-
+/// Returns the squares attacked by the pawns of `color` in `pawns`. Works on a whole set of pawns at once, and is not
+/// limited to comptime use since `color` is the only comptime-required argument.
+pub fn pawnAttacks(comptime color: Color, pawns: Bitboard) Bitboard {
     return if (color == .white)
-        shift(square_bb, direction.northwest) | shift(square_bb, direction.northeast)
+        shift(pawns, direction.northwest) | shift(pawns, direction.northeast)
     else
-        shift(square_bb, direction.southwest) | shift(square_bb, direction.southeast);
+        shift(pawns, direction.southwest) | shift(pawns, direction.southeast);
 }
+
 /// Comptime function that returns the squares attacked by a knight or king on `square`.
 fn nonSliderAttacks(comptime attack_type: Piece.AttackType, comptime square: Square) Bitboard {
     std.debug.assert(attack_type == .knight or attack_type == .king);
