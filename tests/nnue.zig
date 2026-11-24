@@ -14,10 +14,10 @@ test "Nxc3 captures a queen, updates the accumulator and can be undone" {
 
     var before: pollock.Position = undefined;
     var after: pollock.Position = undefined;
-    var before_info: pollock.Position.Info = undefined;
-    var after_info: pollock.Position.Info = undefined;
-    _ = try before.setFen(&before_info, "7k/p7/8/8/8/2q5/P7/1N5K w - - 0 1", null);
-    _ = try after.setFen(&after_info, "7k/p7/8/8/8/2N5/P7/7K b - - 0 1", null);
+    var before_state: pollock.Position.State = undefined;
+    var after_state: pollock.Position.State = undefined;
+    _ = try before.setFen(&before_state, "7k/p7/8/8/8/2q5/P7/1N5K w - - 0 1", false);
+    _ = try after.setFen(&after_state, "7k/p7/8/8/8/2N5/P7/7K b - - 0 1", false);
 
     const original = net.refresh(&before);
     var updated = original;

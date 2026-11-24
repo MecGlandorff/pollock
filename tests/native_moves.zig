@@ -4,8 +4,8 @@ const mg = p.movegen;
 
 fn parse(fen: []const u8, net: ?*const p.nnue.Network) !mg.Board {
     var pos: p.Position = undefined;
-    var info: p.Position.Info = undefined;
-    const rest = try pos.setFen(&info, fen, null);
+    var state: p.Position.State = undefined;
+    const rest = try pos.setFen(&state, fen, false);
     try std.testing.expect(rest.len == 0);
     return mg.Board.fromPosition(&pos, net);
 }
@@ -88,10 +88,10 @@ test "wide incremental evaluation matches refresh across exceptional moves" {
     try expectSpecialMoveRefresh(&wrapper);
     var valid: p.Position = undefined;
     var invalid: p.Position = undefined;
-    var valid_info: p.Position.Info = undefined;
-    var invalid_info: p.Position.Info = undefined;
-    valid.setStartPosition(&valid_info);
-    _ = try invalid.setFen(&invalid_info, "rnbqkbnr/pppppppp/8/8/8/Q7/PPPPPPPP/RNBQKBNR w KQkq - 0 1", null);
+    var valid_state: p.Position.State = undefined;
+    var invalid_state: p.Position.State = undefined;
+    valid.setStartPosition(&valid_state);
+    _ = try invalid.setFen(&invalid_state, "rnbqkbnr/pppppppp/8/8/8/Q7/PPPPPPPP/RNBQKBNR w KQkq - 0 1", false);
     try std.testing.expectError(error.InvalidPieceCount, wrapper.refreshChecked(&invalid));
     const original = wrapper.refresh(&valid);
     var state = original;
@@ -137,10 +137,10 @@ fn expectSpecialMoveRefresh(wrapper: *const p.nnue.Network) !void {
     for (cases) |case| {
         var before_pos: p.Position = undefined;
         var after_pos: p.Position = undefined;
-        var before_info: p.Position.Info = undefined;
-        var after_info: p.Position.Info = undefined;
-        _ = try before_pos.setFen(&before_info, case.before, null);
-        _ = try after_pos.setFen(&after_info, case.after, null);
+        var before_state: p.Position.State = undefined;
+        var after_state: p.Position.State = undefined;
+        _ = try before_pos.setFen(&before_state, case.before, false);
+        _ = try after_pos.setFen(&after_state, case.after, false);
         const before = try mg.Board.fromPosition(&before_pos, wrapper);
         const child = mg.playUci(&before, case.move, wrapper) orelse return error.IllegalTestMove;
         const expected = try mg.Board.fromPosition(&after_pos, wrapper);

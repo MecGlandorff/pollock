@@ -81,12 +81,12 @@ const Session = struct {
             has_moves = self.last_has_moves;
         } else {
             var original: p.Position = undefined;
-            var info: p.Position.Info = undefined;
+            var state: p.Position.State = undefined;
             if (std.mem.eql(u8, text, "startpos") or std.mem.startsWith(u8, text, "startpos ")) {
-                original.setStartPosition(&info);
+                original.setStartPosition(&state);
                 rest = std.mem.trim(u8, text["startpos".len..], " \t");
             } else if (std.mem.startsWith(u8, text, "fen ")) {
-                rest = try original.setFen(&info, text[4..], null);
+                rest = try original.setFenAutoVariant(&state, text[4..]);
                 rest = std.mem.trim(u8, rest, " \t");
             } else return error.InvalidPosition;
             current = try mg.Board.fromPosition(&original, self.net());

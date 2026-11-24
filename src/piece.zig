@@ -2,10 +2,13 @@ const std = @import("std");
 
 const Color = @import("pollock").Color;
 
+/// A colored piece, packed into 4 bits: the color is bit 0 and the type is bits 1-3. `index` therefore runs 0-11 in
+/// the order white pawn, black pawn, white knight, black knight, and so on.
 pub const Piece = packed struct(u4) {
     color: Color,
     type: Type,
 
+    /// The type of a piece, regardless of color.
     pub const Type = enum(u3) {
         pawn = 0,
         knight,
@@ -13,8 +16,11 @@ pub const Piece = packed struct(u4) {
         rook,
         queen,
         king,
+
+        pub const TypeInt = std.meta.Tag(Type);
     };
 
+    /// Selects an attack table. Unlike `Type`, pawns are split by color, because their attacks depend on direction.
     pub const AttackType = enum(u3) {
         white_pawn = 0,
         knight,
@@ -23,6 +29,21 @@ pub const Piece = packed struct(u4) {
         queen,
         king,
         black_pawn = 6,
+
+        const AttackTypeInt = std.meta.Tag(AttackType);
+
+        /// Returns the attack type of a pawn of `color` itself (`white_pawn` for white, `black_pawn` for black).
+        pub fn forPawn(color: Color) AttackType {
+            return @fromBackingInt(@as(AttackTypeInt, @backingInt(color)) * @backingInt(AttackType.black_pawn));
+        }
+
+        /// Returns the attack type of the non-pawn `piece_type`. Pawns are excluded because their attacks depend on
+        /// color, so use `forPawn` for them.
+        pub fn fromType(piece_type: Type) AttackType {
+            std.debug.assert(piece_type != .pawn);
+
+            return @fromBackingInt(@backingInt(piece_type));
+        }
     };
 
     pub const white_pawn = create(.white, .pawn);
@@ -38,22 +59,41 @@ pub const Piece = packed struct(u4) {
     pub const black_queen = create(.black, .queen);
     pub const black_king = create(.black, .king);
 
+    /// Number of distinct pieces, which is also the exclusive upper bound of `index`.
     pub const count = 12;
 
-    /// Creates a new piece.
+    /// Creates a piece of `color` and `type`.
     pub inline fn create(color: Color, @"type": Type) Piece {
         return .{ .color = color, .type = @"type" };
     }
 
-    /// Switches the color of `piece`.
-    pub inline fn opposite(piece: Piece) Piece {
+    /// Returns the piece for the FEN character `char` (uppercase is white), or `null` if there is none.
+    pub fn fromChar(char: u8) ?Piece {
+        return switch (char) {
+            // zig fmt: off
+            'P' => .white_pawn,   'p' => .black_pawn,
+            'N' => .white_knight, 'n' => .black_knight,
+            'B' => .white_bishop, 'b' => .black_bishop,
+            'R' => .white_rook,   'r' => .black_rook,
+            'Q' => .white_queen,  'q' => .black_queen,
+            'K' => .white_king,   'k' => .black_king,
+            // zig fmt: on
+            else => null,
+        };
+    }
+
+    /// Returns the piece of the same type as `piece` with the opposite color.
+    pub inline fn flipColor(piece: Piece) Piece {
         return .{ .color = piece.color.opposite(), .type = piece.type };
     }
 
-    /// Returns `piece` as a character.
-    pub fn toChar(piece: Piece) u8 {
-        const character: [count]u8 = .{ 'P', 'p', 'N', 'n', 'B', 'b', 'R', 'r', 'Q', 'q', 'K', 'k' };
+    /// Returns the FEN character of `piece`.
+    pub inline fn toChar(piece: Piece) u8 {
+        return "PpNnBbRrQqKk"[piece.index()];
+    }
 
-        return character[@backingInt(piece)];
+    /// Returns `piece` as an index below `count`, e.g. for Zobrist keys.
+    pub inline fn index(piece: Piece) usize {
+        return @backingInt(piece);
     }
 };
