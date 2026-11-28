@@ -1,0 +1,48 @@
+name: Pollock CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  windows:
+    runs-on: windows-2025
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Zig 0.17.1
+        shell: pwsh
+        run: |
+          $distribution = 'zig-x86_64-windows-0.17.1'
+          $archive = Join-Path $env:RUNNER_TEMP "$distribution.zip"
+          $sha256 = 'b03f477a1943673e02aca0f570e8030dffd536ce1f45cbc4d3326ec31159562e'
+          Invoke-WebRequest "https://ziglang.org/download/0.17.1/$distribution.zip" -OutFile $archive
+          if ((Get-FileHash $archive -Algorithm SHA256).Hash -ne $sha256) {
+            throw 'Zig archive SHA-256 mismatch'
+          }
+          Expand-Archive -LiteralPath $archive -DestinationPath $env:RUNNER_TEMP
+          Join-Path $env:RUNNER_TEMP $distribution | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+
+      - name: Run Zig tests
+        run: zig build test -Doptimize=ReleaseSafe -j1
+
+      - name: Build Pollock
+        run: zig build -Doptimize=ReleaseFast -j1
+
+      - name: Check start position perft
+        shell: pwsh
+        run: |
+          $nodes = & .\zig-out\bin\pollock.exe perft 5
+          if ($LASTEXITCODE -ne 0 -or $nodes -cne '4865609') {
+            throw "Expected 4865609 nodes at depth 5, got '$nodes'"
+          }
+
+      - name: Run UCI smoke test
+        run: python tests/uci_smoke.py zig-out/bin/pollock.exe
+
+      - name: Verify archived results
+        run: python tests/verify_arena.py
