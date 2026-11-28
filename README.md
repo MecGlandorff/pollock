@@ -1,6 +1,6 @@
 # Pollock
 
-Pollock is a single-threaded Zig chess engine for standard-chess UCI GUIs. This snapshot uses Pieter te Brake's (Pollock's co-creator) legal move generator and the Wide1024 network trained on 661,684,245 positions.
+Pollock is a single-threaded Zig chess engine for standard-chess UCI GUIs. This snapshot uses Pieter te Brake's (Pollock's co-creator) legal move generator and a Wide1024 network trained on 661,684,245 positions with evaluations from Leela Chess Zero's BT4 network.
 
 ## Build and play
 
