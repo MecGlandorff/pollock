@@ -23,4 +23,28 @@ Use `go depth`, `go nodes`, `go movetime`, or standard game clocks with `wtime`,
 
 ```powershell
 zig build test -Doptimize=ReleaseSafe -j1
+python tests/verify_arena.py
 ```
+
+## Games
+
+This release archives 144 Fastchess games against nine opponents from the original gauntlet. Each matchup uses eight openings with both colors, 15 seconds plus 0.15 seconds per move, one thread, and 64 MiB hash where supported.
+
+Parentheses show the CCRL Blitz anchor ratings from 2026-11-21.
+
+| Opponent | W–D–L | Points |
+| --- | ---: | ---: |
+| Vajolet2 3.2 (3400) | 8–7–1 | 11.5/16 |
+| Stockfish 10 (3511) | 1–8–7 | 5/16 |
+| Ethereal 12.50 (3395) | 6–8–2 | 10/16 |
+| Xiphos 0.6 (3354) | 10–6–0 | 13/16 |
+| Laser 1.7 (3292) | 8–5–3 | 10.5/16 |
+| Fire 8.2 (3481) | 3–10–3 | 8/16 |
+| Berserk 5.0 (3452) | 8–6–2 | 11/16 |
+| Weiss 2.0 (3318) | 7–8–1 | 11/16 |
+| Defenchess 2.2 (3280) | 10–5–1 | 12.5/16 |
+| **Total** | **61–63–20** | **92.5/144** |
+
+The fitted local blitz estimate for this subset is **3493.6 Elo** (paired 95% interval **3458.7–3530.4**). The subset was selected for this release after play began. The interval treats the CCRL anchors as fixed.
+
+[Played games and benchmark metadata](arena_archive_played_games/games.json)
