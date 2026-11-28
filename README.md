@@ -15,6 +15,8 @@ In a chess GUI, add `zig-out\bin\pollock.exe` as a UCI engine and set `EvalFile`
 
 The Windows bundle contains the exact native executable used for the games. After extracting it, run `.\pollock.exe uci --weights .\played\wide1024-661m.pnn`. This build uses AVX2, BMI1, BMI2, F16C, LZCNT and POPCNT. Build from source for a different CPU target.
 
+See the [661M release provenance](docs/releases/wide1024-661m.md) for the match executable, build inputs, and training records.
+
 ## UCI support
 
 Use `go depth`, `go nodes`, `go movetime`, or standard game clocks with `wtime`, `btime`, `winc`, `binc`, and optional `movestogo`. Use `go infinite` followed by `stop` for analysis. Put `searchmoves` last when restricting root moves. A pending re-search can put the reported node count slightly over its limit. For mate analysis, use a time or depth limit.
