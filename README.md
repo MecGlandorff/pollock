@@ -23,6 +23,7 @@ Use `go depth`, `go nodes`, `go movetime`, or standard game clocks with `wtime`,
 
 ```powershell
 zig build test -Doptimize=ReleaseSafe -j1
+python tests/uci_smoke.py zig-out/bin/pollock.exe
 python tests/verify_arena.py
 ```
 
